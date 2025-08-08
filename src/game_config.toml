@@ -1,0 +1,20 @@
+turns = 30
+starting_money = 400
+
+cook_payoff = 200
+
+cheese_cost = 400
+cheese_mature_turns = 300
+cheese_payoff = 1200
+
+recipe_cost = 600
+recipe_dividend = 10
+
+cookbook_cost = 2000
+cookbook_dividend = 100
+
+croissant_starting_price = 300
+croissant_quantity_maximum = 20
+croissant_price_fall = 10
+croissant_price_rise = 20
+croissant_minimum_price = 10

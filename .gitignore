@@ -1,0 +1,7 @@
+__pycache__/
+checkpoints/
+logs/
+target/
+
+.DS_Store
+session.vim
