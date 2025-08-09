@@ -32,6 +32,7 @@ fn process_action(game: &mut CroissantGame, action: &str) -> game_model::ActionR
     let Some(captures) = ACTION_REGEX.captures(action) else {
         return Err(game_model::InvalidActionError { cause: game_model::InvalidActionErrorCause::InvalidAction });
     };
+    // TODO: should allow quantity == "max", maybe?
     let maybe_quantity = captures[2].trim().parse::<u32>();
     // validate quantity and action first
     match &captures[1] {
@@ -49,9 +50,9 @@ fn process_action(game: &mut CroissantGame, action: &str) -> game_model::ActionR
     match &captures[1] {
         "1" => game.execute_cook(),
         "2" => game.execute_buy_cheese(maybe_quantity.unwrap()),
-        "3" => todo!(),
-        "4" => todo!(),
-        "5" => todo!(),
+        "3" => game.execute_sell_cheese(),
+        "4" => game.execute_publish_recipe(),
+        "5" => game.execute_publish_cookbook(),
         "6" => game.execute_buy_croissants(maybe_quantity.unwrap()),
         _ => unreachable!(),
     }
@@ -64,11 +65,11 @@ fn main() {
     let mut game = CroissantGame::new(game_config.clone());
 
     while !game.is_game_over() {
-        let (mature_cheese, non_mature_cheeses) = game.count_cheeses();
+        let (mature_cheeses, non_mature_cheeses) = game.count_cheeses();
         println!("It is turn {}/{} and you have:", game.turn, game_config.turns);
-        println!("- {} dollars", format_money(game.money));
+        println!("- {}", format_money(game.money));
+        println!("- {} mature and {} aging cheese", mature_cheeses, non_mature_cheeses);
         println!("- {} recipes", game.recipes);
-        println!("- {} mature and {} non-mature cheese", mature_cheese, non_mature_cheeses);
         println!("- {} cookbooks", game.cookbooks);
         println!("- {} croissants", game.croissants);
         println!("");
@@ -78,8 +79,8 @@ fn main() {
         println!("1. Cook");
         println!("2. Buy fresh cheese [quantity]");
         println!("3. Sell all mature cheese");
-        println!("4. Buy 1 recipe");
-        println!("5. Buy 1 cookbook");
+        println!("4. Publish 1 recipe");
+        println!("5. Publish 1 cookbook");
         println!("6. Buy croissants [quantity]");
         println!("");
 
@@ -91,5 +92,5 @@ fn main() {
         };
     }
 
-    println!("Game is over now!");
+    println!("Game over! You earned {} croissants.\n", game.croissants);
 }

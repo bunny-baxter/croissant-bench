@@ -12,6 +12,8 @@ pub enum InvalidActionErrorCause {
     GameOver,
     NotEnoughMoney(i32),
     CheeseMaxQuantityExceeded(u32),
+    NoCheeseToSell,
+    CroissantMaxQuantityExceeded(u32),
 }
 
 #[derive(Debug, Clone)]
@@ -23,11 +25,13 @@ impl InvalidActionError {
     pub fn describe(&self) -> String {
         match self.cause {
             InvalidActionErrorCause::InvalidAction => "Invalid action.".to_string(),
-            InvalidActionErrorCause::InvalidQuantity => "Action requires a quantity.".to_string(),
+            InvalidActionErrorCause::InvalidQuantity => "Action requires a quantity greater than 0.".to_string(),
             InvalidActionErrorCause::ExtraneousQuantity => "Action should not have a quantity.".to_string(),
             InvalidActionErrorCause::GameOver => "Game is over.".to_string(),
-            InvalidActionErrorCause::NotEnoughMoney(total_cost) => format!("Not enough money, need at least {} dollars.", format_money(total_cost)),
+            InvalidActionErrorCause::NotEnoughMoney(total_cost) => format!("Not enough money, need at least {}.", format_money(total_cost)),
             InvalidActionErrorCause::CheeseMaxQuantityExceeded(max) => format!("Cannot buy that much cheese (max {}).", max),
+            InvalidActionErrorCause::NoCheeseToSell => "You have no mature cheese to sell.".to_string(),
+            InvalidActionErrorCause::CroissantMaxQuantityExceeded(max) => format!("Cannot buy that many croissants (max {}).", max),
         }
     }
 }
@@ -42,7 +46,7 @@ pub type ActionResult<T> = std::result::Result<T, InvalidActionError>;
 
 
 pub fn format_money(raw_money: i32) -> String {
-    format!("{}.{:02}", raw_money / 100, raw_money % 100)
+    format!("${}.{:02}", raw_money / 100, raw_money % 100)
 }
 
 
@@ -118,6 +122,8 @@ impl CroissantGame {
         for i in 0..self.cheeses.len() {
             self.cheeses[i] += 1;
         }
+        self.money += self.config.recipe_dividend * self.recipes;
+        self.money += self.config.cookbook_dividend * self.cookbooks;
     }
 
     pub fn execute_cook(&mut self) -> ActionResult<()> {
@@ -133,7 +139,9 @@ impl CroissantGame {
         if self.is_game_over() {
             return Err(InvalidActionError { cause: InvalidActionErrorCause::GameOver });
         }
-        // TODO: reject quantity==0
+        if quantity == 0 {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::InvalidQuantity });
+        }
         if quantity > self.config.cheese_quantity_maximum {
             return Err(InvalidActionError { cause: InvalidActionErrorCause::CheeseMaxQuantityExceeded(self.config.cheese_quantity_maximum) });
         }
@@ -148,8 +156,64 @@ impl CroissantGame {
         Ok(())
     }
 
+    pub fn execute_sell_cheese(&mut self) -> ActionResult<()> {
+        if self.is_game_over() {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::GameOver });
+        }
+        let (mature_cheeses, _non_mature_cheeses) = self.count_cheeses();
+        if mature_cheeses == 0 {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::NoCheeseToSell });
+        }
+        let total_gain = mature_cheeses * self.config.cheese_payoff;
+        self.money += total_gain;
+        self.cheeses = self.cheeses.iter().filter(|&&age| age < self.config.cheese_mature_turns).cloned().collect();
+        self.end_turn();
+        Ok(())
+    }
+
+    pub fn execute_publish_recipe(&mut self) -> ActionResult<()> {
+        if self.is_game_over() {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::GameOver });
+        }
+        if self.config.recipe_cost > self.money {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::NotEnoughMoney(self.config.recipe_cost) });
+        }
+        self.money -= self.config.recipe_cost;
+        self.recipes += 1;
+        self.end_turn();
+        Ok(())
+    }
+
+    pub fn execute_publish_cookbook(&mut self) -> ActionResult<()> {
+        if self.is_game_over() {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::GameOver });
+        }
+        if self.config.cookbook_cost > self.money {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::NotEnoughMoney(self.config.cookbook_cost) });
+        }
+        self.money -= self.config.cookbook_cost;
+        self.cookbooks += 1;
+        self.end_turn();
+        Ok(())
+    }
+
     pub fn execute_buy_croissants(&mut self, quantity: u32) -> ActionResult<()> {
-        todo!();
+        if self.is_game_over() {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::GameOver });
+        }
+        if quantity == 0 {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::InvalidQuantity });
+        }
+        if quantity > self.config.croissant_quantity_maximum {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::CroissantMaxQuantityExceeded(self.config.croissant_quantity_maximum) });
+        }
+        let total_cost = self.croissant_price * quantity as i32;
+        if total_cost > self.money {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::NotEnoughMoney(total_cost) });
+        }
+        self.money -= total_cost;
+        self.croissants += quantity as i32;
+        self.end_turn();
         Ok(())
     }
 }
