@@ -4,7 +4,8 @@ starting_money = 400
 cook_payoff = 200
 
 cheese_cost = 400
-cheese_mature_turns = 300
+cheese_quantity_maximum = 5
+cheese_mature_turns = 4
 cheese_payoff = 1200
 
 recipe_cost = 600

@@ -6,9 +6,12 @@ use serde::Deserialize;
 
 #[derive(Debug, Clone)]
 pub enum InvalidActionErrorCause {
-    InvalidInput,
+    InvalidAction,
+    InvalidQuantity,
+    ExtraneousQuantity,
     GameOver,
-    NotEnoughMoney,
+    NotEnoughMoney(i32),
+    CheeseMaxQuantityExceeded(u32),
 }
 
 #[derive(Debug, Clone)]
@@ -17,11 +20,14 @@ pub struct InvalidActionError {
 }
 
 impl InvalidActionError {
-    pub fn describe(&self) -> &'static str {
+    pub fn describe(&self) -> String {
         match self.cause {
-            InvalidActionErrorCause::InvalidInput => "Invalid input.",
-            InvalidActionErrorCause::GameOver => "Game is over.",
-            InvalidActionErrorCause::NotEnoughMoney => "Not enough money.",
+            InvalidActionErrorCause::InvalidAction => "Invalid action.".to_string(),
+            InvalidActionErrorCause::InvalidQuantity => "Action requires a quantity.".to_string(),
+            InvalidActionErrorCause::ExtraneousQuantity => "Action should not have a quantity.".to_string(),
+            InvalidActionErrorCause::GameOver => "Game is over.".to_string(),
+            InvalidActionErrorCause::NotEnoughMoney(total_cost) => format!("Not enough money, need at least {} dollars.", format_money(total_cost)),
+            InvalidActionErrorCause::CheeseMaxQuantityExceeded(max) => format!("Cannot buy that much cheese (max {}).", max),
         }
     }
 }
@@ -32,7 +38,7 @@ impl fmt::Display for InvalidActionError {
     }
 }
 
-type ActionResult<T> = std::result::Result<T, InvalidActionError>;
+pub type ActionResult<T> = std::result::Result<T, InvalidActionError>;
 
 
 pub fn format_money(raw_money: i32) -> String {
@@ -46,6 +52,7 @@ pub struct CroissantGameConfig {
     pub starting_money: i32,
     pub cook_payoff: i32,
     pub cheese_cost: i32,
+    pub cheese_quantity_maximum: u32,
     pub cheese_mature_turns: i32,
     pub cheese_payoff: i32,
     pub recipe_cost: i32,
@@ -53,7 +60,7 @@ pub struct CroissantGameConfig {
     pub cookbook_cost: i32,
     pub cookbook_dividend: i32,
     pub croissant_starting_price: i32,
-    pub croissant_quantity_maximum: i32,
+    pub croissant_quantity_maximum: u32,
     pub croissant_price_fall: i32,
     pub croissant_price_rise: i32,
     pub croissant_minimum_price: i32,
@@ -108,6 +115,9 @@ impl CroissantGame {
 
     fn end_turn(&mut self) {
         self.turn += 1;
+        for i in 0..self.cheeses.len() {
+            self.cheeses[i] += 1;
+        }
     }
 
     pub fn execute_cook(&mut self) -> ActionResult<()> {
@@ -116,6 +126,30 @@ impl CroissantGame {
         }
         self.money += self.config.cook_payoff;
         self.end_turn();
+        Ok(())
+    }
+
+    pub fn execute_buy_cheese(&mut self, quantity: u32) -> ActionResult<()> {
+        if self.is_game_over() {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::GameOver });
+        }
+        // TODO: reject quantity==0
+        if quantity > self.config.cheese_quantity_maximum {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::CheeseMaxQuantityExceeded(self.config.cheese_quantity_maximum) });
+        }
+        let total_cost = self.config.cheese_cost * quantity as i32;
+        if total_cost > self.money {
+            return Err(InvalidActionError { cause: InvalidActionErrorCause::NotEnoughMoney(total_cost) });
+        }
+        self.money -= total_cost;
+        let mut new_cheeses = vec![ 0 ; quantity as usize ];
+        self.cheeses.append(&mut new_cheeses);
+        self.end_turn();
+        Ok(())
+    }
+
+    pub fn execute_buy_croissants(&mut self, quantity: u32) -> ActionResult<()> {
+        todo!();
         Ok(())
     }
 }
